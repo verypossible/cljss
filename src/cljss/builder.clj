@@ -7,13 +7,20 @@
   (and (re-matches #"^.*\?$" (name rule))
        (map? value)))
 
+(defn- build-medias [styles cls idx]
+  (reduce (fn [acc [a b]] (conj acc (build-media cls idx {a b}))) [] (seq styles)))
+
+(defn- combine-medias [medias]
+  (reduce (fn [[mstatic mvals midx] [s v idx]] [(conj mstatic s) (concat mvals v)] idx) [[] [] 0] medias))
+
 (defn build-styles [cls styles]
   (let [rule-index 0
         pseudo (filterv utils/pseudo? styles)
         nested (->> styles
                     (filterv (comp not utils/pseudo?))
                     (filterv utils/nested?))
-        [mstatic mvals mrule-index] (some-> styles :cljss.core/media ((partial build-media cls rule-index)))
+        medias (build-medias (:cljss.core/media styles) cls rule-index)
+        [mstatics mvals mrule-index] (combine-medias medias)
         rule-index (or mrule-index rule-index)
         styles (dissoc styles :cljss.core/media)
         styles (filterv #(and (not (utils/pseudo? %)) (not (utils/nested? %))) styles)
@@ -40,9 +47,7 @@
                   (into vals))
         static (into [static] (map first pstyles))
         static (into static (map first nstyles))
-        static (if mstatic
-                 (conj static mstatic)
-                 static)]
+        static (vec (concat static mstatics))]
     [cls static vals]))
 
 (comment
